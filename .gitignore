@@ -1,0 +1,29 @@
+# Credentials: keep example templates only.
+.env
+.env.*
+!.env.example
+!.env.local.example
+.vercel/
+# Private data and runtime artifacts
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+.run/
+*.log
+# Dependencies and build caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
