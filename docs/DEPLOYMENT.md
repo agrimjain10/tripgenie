@@ -67,7 +67,7 @@ git commit -m "Describe the change"
 git push origin main
 ```
 
-GitHub Actions runs tests/builds. Vercel's Git integration deploys pushes automatically. These run independently: use pull requests and wait for checks before merging to prevent unchecked changes reaching production.
+Vercel builds and deploys pushes automatically. Run the documented tests before pushing. An optional GitHub Actions workflow is included at `docs/quality-checks.yml.example`; enable it at `.github/workflows/ci.yml` after granting the GitHub publishing credential `workflow` scope. The current publishing token can push app code but cannot upload workflow files. Use pull requests and review checks before merging.
 
 Revert a bad commit and push, or promote a previously verified deployment. Code rollback does not roll back database changes. Keep database backups outside Git.
 

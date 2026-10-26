@@ -10,7 +10,7 @@ Plan the route. Understand the budget. Keep the whole journey together.
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?logo=fastapi&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Powered_by-Gemini-8e75b2?logo=googlegemini&logoColor=white)
-![Checks](https://github.com/agrimjain10/tripgenie/actions/workflows/ci.yml/badge.svg)
+![Deployment](https://img.shields.io/badge/Deployment-Vercel-111827?logo=vercel)
 
 **[Open the live app](https://tripgenie-escape.vercel.app)** · [Features](#what-you-can-do) · [Quick start](#run-locally) · [Architecture](#how-it-fits-together) · [Deployment](docs/DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md)
 
@@ -151,7 +151,7 @@ Templates: [`backend/.env.example`](backend/.env.example), [`frontend/.env.local
 
 ```text
 tripgenie/
-├── .github/workflows/ci.yml     # Tests and builds on pushes / PRs
+├── docs/quality-checks.yml.example # Optional GitHub Actions workflow template
 ├── backend/
 │   ├── main.py                 # Routes, jobs, workspace and external data
 │   ├── ai_service.py           # Gemini generation and structured validation
@@ -186,7 +186,7 @@ npm run build
 
 Integration coverage includes authorization and ownership, generation, dates, budget arithmetic, cancellation races, conversations, manual edits, expense validation, sharing privacy/revocation, exports, duplication/archive, profiles and password updates. Tests use temporary databases and mocked providers.
 
-GitHub Actions runs checks automatically. Live deployment smoke tests additionally verify the configured database and provider.
+Vercel runs its build checks on each deployment. An additional GitHub Actions template is supplied in `docs/quality-checks.yml.example`; move it to `.github/workflows/ci.yml` after granting the publishing credential the `workflow` scope. Live smoke tests additionally verify the configured database and provider.
 
 ## Deployment and future updates
 
