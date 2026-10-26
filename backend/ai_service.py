@@ -133,7 +133,7 @@ def _try_gemini(prompt: str, trip, expected_days: int) -> dict:
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         raise RuntimeError("Gemini key is not configured")
-    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=30000, retry_options=types.HttpRetryOptions(attempts=1)))
+    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=40000, retry_options=types.HttpRetryOptions(attempts=1)))
     last_error = None
     for model in _model_chain():
         try:
@@ -145,6 +145,7 @@ def _try_gemini(prompt: str, trip, expected_days: int) -> dict:
                     response_mime_type="application/json",
                     response_json_schema=Itinerary.model_json_schema(),
                     max_output_tokens=18000,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0) if model.startswith('gemini-2.5-') else None,
                 ),
             )
             if not response.text:
@@ -168,7 +169,7 @@ def _try_gemini(prompt: str, trip, expected_days: int) -> dict:
             return plan
         except Exception as exc:
             last_error = exc
-            logger.warning("Gemini model attempt failed (%s; error type %s)", model, type(exc).__name__)
+            logger.warning("Gemini model attempt failed (%s; error type %s; status %s)", model, type(exc).__name__, getattr(exc, 'code', 'validation/network'))
     raise RuntimeError("No configured Gemini model returned a usable plan") from last_error
 
 

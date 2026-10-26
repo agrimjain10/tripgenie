@@ -76,7 +76,7 @@ flowchart LR
 1. The API saves the trip and accepts generation with `202`.
 2. The workspace polls the saved trip while a background task prepares the itinerary.
 3. Gemini returns a structured response validated against the itinerary schema. Selected dates, night counts and budget calculations are checked.
-4. Each model attempt is bounded to 30 seconds, with one attempt per model. The default chain contains two models.
+4. Each model attempt is bounded to 40 seconds, with one attempt per model. The default chain contains two models; the Gemini 2.5 fallback disables its optional thinking budget to reduce latency.
 5. An unavailable provider produces an explicitly labeled curated starter plan. Failed chat updates preserve the existing itinerary.
 6. Cancellation invalidates the job token, so an old result cannot replace a newer or cancelled plan. Stale jobs recover after 95 seconds.
 
