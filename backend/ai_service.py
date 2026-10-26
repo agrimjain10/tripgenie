@@ -124,8 +124,8 @@ Use English by default, or Roman-script Hinglish if requested in the travel brie
 
 
 def _model_chain() -> list[str]:
-    primary = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
-    configured = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-3.1-flash-lite")
+    primary = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
+    configured = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash")
     return list(dict.fromkeys([primary, *(item.strip() for item in configured.split(",") if item.strip())]))
 
 

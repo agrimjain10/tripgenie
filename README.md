@@ -12,11 +12,18 @@ Plan the route. Understand the budget. Keep the whole journey together.
 ![Gemini](https://img.shields.io/badge/Powered_by-Gemini-8e75b2?logo=googlegemini&logoColor=white)
 ![Checks](https://github.com/agrimjain10/tripgenie/actions/workflows/ci.yml/badge.svg)
 
-[Features](#what-you-can-do) · [Quick start](#run-locally) · [Architecture](#how-it-fits-together) · [Deployment](docs/DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md)
+**[Open the live app](https://tripgenie-escape.vercel.app)** · [Features](#what-you-can-do) · [Quick start](#run-locally) · [Architecture](#how-it-fits-together) · [Deployment](docs/DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
+![TripGenie live landing page](docs/images/landing.png)
+
+<details>
+<summary><strong>Inside a detailed trip workspace</strong></summary>
+
 ![TripGenie detailed trip workspace](docs/images/trip-workspace.png)
+
+</details>
 
 ## The idea
 
@@ -135,7 +142,8 @@ Run `npm run build` followed by `npm run start` in `frontend`. On Windows, root 
 | `JWT_SECRET` | Backend | Long random signing secret |
 | `FRONTEND_URL` | Backend | Exact allowed browser origins, comma-separated |
 | `DATABASE_URL` | Backend | Optional locally; persistent PostgreSQL required in cloud |
-| `NEXT_PUBLIC_API_URL` | Frontend build | Public backend origin, without trailing `/api` |
+| `NEXT_PUBLIC_API_URL` | Frontend build | `/` in cloud for the same-origin API proxy; backend origin for direct local calls |
+| `BACKEND_API_URL` | Frontend server/build | Backend HTTPS origin used by Next.js rewrites |
 
 Templates: [`backend/.env.example`](backend/.env.example), [`frontend/.env.local.example`](frontend/.env.local.example). Credentials, logs and databases are excluded from Git.
 

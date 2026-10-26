@@ -1,5 +1,9 @@
 # Deployment and continuous updates
 
+**Live app:** https://tripgenie-escape.vercel.app
+
+**Backend health:** https://tripgenie-api.vercel.app/api/health
+
 ## Target layout
 
 | Resource | Configuration |
@@ -39,7 +43,7 @@ The backend production URL must accept requests from the frontend. Preview deplo
 
 Root: **frontend**. Framework: **Next.js**. Node: **22.x**. Install: `npm ci`. Build: `npm run build`.
 
-Set `NEXT_PUBLIC_API_URL` to the backend HTTPS origin, without `/api`. This variable is embedded at build time; redeploy after changing it. A free `vercel.app` domain is included. Buying a custom domain is optional and outside this zero-cost setup.
+Set `NEXT_PUBLIC_API_URL=/` and `BACKEND_API_URL=https://tripgenie-api.vercel.app`. Next.js proxies `/api/*` to the backend so browser calls stay on the application origin. These settings affect the build; redeploy after changing them. Direct cross-origin API URLs remain supported for local development. A free `vercel.app` domain is included. Buying a custom domain is optional and outside this zero-cost setup.
 
 ## Verify the complete flow
 
