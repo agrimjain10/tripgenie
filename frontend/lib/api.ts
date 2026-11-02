@@ -1,4 +1,4 @@
-export const API_URL=(process.env.NEXT_PUBLIC_API_URL||'http://localhost:8000').replace(/\/$/,'');
+export const API_URL=(process.env.NEXT_PUBLIC_API_URL||'/').replace(/\/$/,'');
 export async function apiFetch(path:string,options:RequestInit={}){
  const headers=new Headers(options.headers);const token=typeof window!=='undefined'?localStorage.getItem('token'):null;if(token)headers.set('Authorization','Bearer '+token);if(options.body)headers.set('Content-Type','application/json');
  try{const response=await fetch(API_URL+path,{...options,headers,cache:'no-store',signal:options.signal||AbortSignal.timeout(18000)});if(response.status===401&&typeof window!=='undefined'&&!['/login','/register'].includes(window.location.pathname)){localStorage.removeItem('token');window.location.href='/login';}return response;}catch(error){if(error instanceof DOMException&&(error.name==='TimeoutError'||error.name==='AbortError'))throw new Error('The connection took too long. Your saved trips are safe. Please try again.');throw new Error('Unable to connect. Please check that the Wandiamo backend is running.');}

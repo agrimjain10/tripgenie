@@ -232,3 +232,10 @@ Check changes before pushing and keep secrets in hosting settings. Production ha
 Made by **CODESCHMIEDE technology private limited**. Developed by Agrim Jain. Real photography is bundled locally from Unsplash and Pexels; no generated travel imagery is used. See [photo credits](docs/IMAGES.md). Forecasts: [Open-Meteo](https://open-meteo.com/). Maps: [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). Attribution appears in the relevant panels.
 
 No open-source license is granted at present. Contact the owner before reusing or redistributing the code.
+
+
+### Sage expedition interface and AI covers
+
+The sage visual system runs through the homepage, sign-in/registration, destination discovery, trip wizard, workspace tabs, budget and sharing screens. The homepage mini-planner preserves origin, travelers and destination/days through authentication. Mobile layouts and reduced-motion preferences are supported.
+
+Each private trip includes **Create AI cover**. Gemini creates a destination-inspired cover on request and the backend caches a compressed JPEG in PostgreSQL. All generated artwork is labelled as inspiration. Configure `GEMINI_IMAGE_MODEL` (default `gemini-3.1-flash-image`) and optionally `GEMINI_IMAGE_API_KEY`; otherwise the server uses its existing Gemini key. Google's image model quota/access is separate from text planning. This integration does not activate billing or guarantee free image generation. Provider failure leaves the trip and existing destination photograph intact. See [image provenance and limits](docs/IMAGES.md).

@@ -35,3 +35,13 @@ class Trip(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     owner = relationship("User", back_populates="trips")
+    visual = relationship("TripVisual", cascade="all, delete-orphan", uselist=False)
+
+
+class TripVisual(Base):
+    __tablename__ = 'trip_visuals'
+    trip_id = Column(Integer, ForeignKey('trips.id', ondelete='CASCADE'), primary_key=True)
+    image_base64 = Column(Text, nullable=True)
+    model = Column(String, nullable=True)
+    state = Column(String, default='generating')
+    requested_at = Column(DateTime, default=datetime.utcnow, nullable=False)

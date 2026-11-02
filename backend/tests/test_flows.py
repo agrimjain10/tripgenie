@@ -50,6 +50,49 @@ class WorkspaceFlows(unittest.TestCase):
         self.assertEqual(trip['status'], 'planned')
         return trip
 
+    def test_ai_visual_ownership_cache_and_private_storage(self):
+        import base64, io
+        from PIL import Image
+        from models import TripVisual
+        output=io.BytesIO();Image.new('RGB',(30,20),'green').save(output,format='JPEG')
+        encoded=base64.b64encode(output.getvalue()).decode()
+        self.assertEqual(self.client.get(self.url+'/visual',headers=self.other).status_code,404)
+        self.assertEqual(self.client.post(self.url+'/visual',headers=self.other).status_code,404)
+        with patch.object(main,'generate_destination_visual',return_value=(encoded,'test-image-model')) as provider:
+            first=self.client.post(self.url+'/visual',headers=self.owner)
+            self.assertEqual(first.status_code,200)
+            self.assertTrue(first.json()['image'].startswith('data:image/jpeg;base64,'))
+            self.assertEqual(self.client.post(self.url+'/visual',headers=self.owner).status_code,200)
+            self.assertEqual(provider.call_count,1)
+        self.assertNotIn(encoded,json.dumps(self.client.get(self.url,headers=self.owner).json()))
+        self.assertEqual(self.client.get(self.url+'/visual',headers=self.owner).json()['state'],'ready')
+        self.assertEqual(self.client.delete(self.url,headers=self.owner).status_code,204)
+        with self.sessions() as db:self.assertIsNone(db.get(TripVisual,self.trip['id']))
+
+    def test_ai_visual_failure_is_bounded_and_plan_unchanged(self):
+        from visual_service import VisualUnavailable
+        with patch.object(main,'generate_destination_visual',side_effect=VisualUnavailable('Image quota unavailable')):
+            response=self.client.post(self.url+'/visual',headers=self.owner)
+            self.assertEqual(response.status_code,503)
+            self.assertEqual(response.json()['detail'],'Image quota unavailable')
+            self.assertEqual(self.client.post(self.url+'/visual',headers=self.owner).status_code,429)
+        self.assertEqual(self.client.get(self.url,headers=self.owner).json()['status'],'draft')
+
+    def test_image_provider_output_and_quota_sanitization(self):
+        import base64, io, os
+        from PIL import Image
+        import visual_service
+        output=io.BytesIO();Image.new('RGB',(30,20),'blue').save(output,format='PNG')
+        response=type('ProviderResponse',(),{'status_code':200,'json':lambda _: {'candidates':[{'content':{'parts':[{'inlineData':{'mimeType':'image/png','data':base64.b64encode(output.getvalue()).decode()}}]}}]}})()
+        with patch.dict(os.environ,{'GEMINI_API_KEY':'not-a-real-key'}),patch.object(visual_service.httpx.Client,'post',return_value=response):
+            image,model=visual_service.generate_destination_visual('Manali','Nature')
+            self.assertTrue(base64.b64decode(image).startswith(b'\xff\xd8'))
+            self.assertTrue(model)
+        response.status_code=429
+        with patch.dict(os.environ,{'GEMINI_API_KEY':'do-not-expose'}),patch.object(visual_service.httpx.Client,'post',return_value=response):
+            with self.assertRaises(visual_service.VisualUnavailable) as error:visual_service.generate_destination_visual('Goa','Food')
+            self.assertNotIn('do-not-expose',str(error.exception))
+
     def test_auth_and_ownership(self):
         self.assertEqual(self.client.get(self.url).status_code, 401)
         self.assertEqual(self.client.get(self.url, headers=self.other).status_code, 404)

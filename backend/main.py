@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 from database import Base, engine, get_db, SessionLocal
-from models import Trip, User
+from models import Trip, TripVisual, User
 from schemas import ChatIn, LoginIn, TokenOut, TripCreate, TripOut, UserCreate, UserOut
 from auth import create_token, get_current_user, hash_password, verify_password
 from ai_service import generate_plan, update_plan, _sample_plan, Itinerary
@@ -20,6 +20,8 @@ from pdf_service import create_pdf
 from typing import Literal
 from discovery_service import DESTINATIONS, PLACES, nearest_city, suggest
 from travel_service import rail_options, stay_options
+from visual_service import generate_destination_visual, VisualUnavailable
+from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger('tripgenie')
 Base.metadata.create_all(bind=engine)
@@ -372,3 +374,41 @@ def trip_stays(trip_id: int, user: User = Depends(get_current_user), db: Session
         return stay_options(trip)
     except (httpx.HTTPError,ValueError):
         return {'available':False,'stays':[],'source':'OpenStreetMap contributors','message':'The map provider could not locate this destination. Search current stays below.','hotels_url':'https://www.google.com/travel/hotels?'+urlencode({'q':trip.destination+' hotels'}),'booking_url':'https://www.booking.com/searchresults.html?'+urlencode({'ss':trip.destination}),'maps_url':'https://www.google.com/maps/search/?'+urlencode({'api':1,'query':trip.destination+' hotels'})}
+
+
+@app.get('/api/trips/{trip_id}/visual')
+def trip_visual(trip_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    owned_trip(trip_id,user,db)
+    visual=db.get(TripVisual,trip_id)
+    return {'available':bool(os.getenv('GEMINI_IMAGE_API_KEY') or os.getenv('GEMINI_API_KEY')), 'image':('data:image/jpeg;base64,'+visual.image_base64) if visual and visual.image_base64 else None, 'label':'AI-generated destination inspiration', 'state':visual.state if visual else 'empty'}
+
+@app.post('/api/trips/{trip_id}/visual')
+def create_trip_visual(trip_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    trip=owned_trip(trip_id,user,db)
+    visual=db.get(TripVisual,trip_id)
+    if visual and visual.image_base64:
+        return trip_visual(trip_id,user,db)
+    now=datetime.utcnow()
+    if visual and now-visual.requested_at<timedelta(seconds=60):
+        raise HTTPException(429,'An image was requested recently. Wait one minute before trying again.')
+    daily=db.query(TripVisual).join(Trip,Trip.id==TripVisual.trip_id).filter(Trip.user_id==user.id,TripVisual.requested_at>=now-timedelta(days=1)).count()
+    if daily>=5:
+        raise HTTPException(429,'Your daily image limit is reached. You can still plan and edit trips.')
+    if visual:
+        changed=db.query(TripVisual).filter(TripVisual.trip_id==trip_id,TripVisual.requested_at==visual.requested_at).update({'state':'generating','requested_at':now})
+        if not changed:raise HTTPException(409,'A cover request is already running.')
+    else:
+        db.add(TripVisual(trip_id=trip_id,state='generating',requested_at=now))
+    try:db.commit()
+    except IntegrityError:
+        db.rollback();raise HTTPException(409,'A cover request is already running.') from None
+    try:
+        image,model=generate_destination_visual(trip.destination,trip.interests or '')
+        visual=db.get(TripVisual,trip_id)
+        if not visual:raise HTTPException(404,'Trip no longer exists')
+        visual.image_base64=image;visual.model=model;visual.state='ready';db.commit()
+    except VisualUnavailable as exc:
+        visual=db.get(TripVisual,trip_id)
+        if visual:visual.state='unavailable';db.commit()
+        raise HTTPException(503,str(exc)) from None
+    return trip_visual(trip_id,user,db)

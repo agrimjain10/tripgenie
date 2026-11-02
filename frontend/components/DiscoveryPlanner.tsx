@@ -25,7 +25,9 @@ export default function DiscoveryPlanner(){
   const [sort,setSort]=useState('match');
   const [compare,setCompare]=useState<string[]>([]);
   useEffect(()=>{
-    setForm(previous=>({...previous,start_date:startDate()}));
+    const params=new URLSearchParams(window.location.search);
+    const days=Number(params.get('days')),travelers=Number(params.get('travelers'));
+    setForm(previous=>({...previous,start_date:startDate(),origin:(params.get('origin')||'').slice(0,120),days:Number.isInteger(days)&&days>=1&&days<=21?days:previous.days,travelers:Number.isInteger(travelers)&&travelers>=1&&travelers<=20?travelers:previous.travelers}));
     request<{origins:string[]}>('/api/discovery/catalog').then(c=>setOrigins(c.origins)).catch(()=>{});
   },[]);
   useEffect(()=>{if(user?.preferences)setForm(previous=>({...previous,pace:user.preferences.pace||previous.pace}));},[user]);
