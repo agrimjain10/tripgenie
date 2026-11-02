@@ -10,7 +10,7 @@ export const niceDate=(value:string)=>new Intl.DateTimeFormat('en-IN',{day:'nume
 export type User={id:number;name:string;email:string;preferences:Record<string,string>};
 export type Expense={id:string;title:string;category:string;amount:number;paid_by:string};
 export type ChatMessage={role:'user'|'assistant';content:string;at:string};
-export type Workspace={title?:string;checked?:string[];notes?:string;expenses?:Expense[];chat?:ChatMessage[]};
+export type Workspace={title?:string;checked?:string[];notes?:string;expenses?:Expense[];chat?:ChatMessage[];advice?:ChatMessage[]};
 export type Trip={id:number;user_id:number;destination:string;origin:string|null;travel_mode:string;start_date:string;end_date:string;travelers:number;budget:number|null;interests:string;trip_brief:string;plan_json:string|null;created_at:string;status:string;workspace:Workspace;public_slug:string|null};
 export type Activity={time:string;activity:string;location:string;cost:number;description?:string;travel_tip?:string};
 export type Day={day:number;date:string;title:string;activities:Activity[];day_cost:number;notes?:string;overnight?:string};

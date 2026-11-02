@@ -26,3 +26,6 @@ See the [Unsplash license](https://unsplash.com/license) and [Pexels license](ht
 Each owned trip offers **Create AI cover**. The server sends only destination and interests to Gemini, with `GEMINI_IMAGE_MODEL` (default `gemini-3.1-flash-image`) and `GEMINI_IMAGE_API_KEY` or the existing Gemini key. Image model access/quota is separate from text generation and may require a paid Google account. Wandiamo does not enable billing. A quota/access error leaves the original photo and trip intact.
 
 Covers are compressed to JPEG, cached in the private database, never included in trip lists or public shares, and removed with their trip. Requests are authenticated, limited to one attempt per minute per trip and five distinct trip cover requests per account per rolling day. Creation is explicitly requested by the traveler, never silently triggered by a page view. A cached successful cover is reused.
+
+
+`frontend/public/images/wandiamo-ai-summit-v2.webp` was created with the built-in imagegen tool for the stepped reference composition. Prompt: close, jagged alpine pyramid at the right, curved foreground glacier, dark emerald/teal snow shadows, peach snow and salmon clouds, dense photographic detail, narrow sky; no people, text, logos or route markings. The route and interactive pins are rendered separately in the app.

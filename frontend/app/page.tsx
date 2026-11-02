@@ -1,8 +1,9 @@
 "use client";
 
 import Link from 'next/link';
-import {FormEvent, useState} from 'react';
+import {FormEvent, useEffect, useState} from 'react';
 import {useRouter} from 'next/navigation';
+import {request} from '@/lib/api';
 import {ArrowDown, ArrowUpRight, Compass, MapPin, Mountain, Route, TrainFront, Users, Wallet} from 'lucide-react';
 
 const places = [
@@ -18,6 +19,9 @@ export default function Home(){
  const [destination,setDestination]=useState('');
  const [days,setDays]=useState('3');
  const [travelers,setTravelers]=useState('2');
+ const [weatherCity,setWeatherCity]=useState('Manali');
+ const [weather,setWeather]=useState<{available:boolean;temperature?:number;time?:string}|null>(null);
+ useEffect(()=>{let active=true;setWeather(null);request<{available:boolean;temperature?:number;time?:string}>('/api/destination-weather?city='+weatherCity).then(result=>{if(active)setWeather(result);}).catch(()=>{if(active)setWeather({available:false});});return()=>{active=false;};},[weatherCity]);
  function startJourney(event:FormEvent<HTMLFormElement>){
   event.preventDefault();
   const query=new URLSearchParams({origin:origin.trim(),travelers});
@@ -26,10 +30,13 @@ export default function Home(){
   router.push((mode==='route'?'/trips/new?':'/explore?')+query.toString());
  }
  return <div className="escape-landing">
-  <section className="sage-hero" aria-labelledby="hero-title">
-   <div className="sage-hero-copy"><span className="eyebrow"><span className="status-dot"/> YOUR WORLD. YOUR WAY.</span><h1 id="hero-title">YOUR JOURNEY.<br/>AI, MADE<br/><em>PERSONAL.</em></h1><p className="sage-tagline">go where you feel alive</p><p>A mountain reset. A coastal detour. A whole new perspective. Discover where you could go, then build a journey around the things that make you, you.</p><div className="sage-actions"><Link href="#journey-planner" className="sage-pill"><span><ArrowUpRight size={19}/></span>START MY JOURNEY</Link><Link className="text-link" href="/explore">Explore escapes<ArrowUpRight size={15}/></Link></div><div className="hero-mini-desk"><Compass size={26}/><div><strong>A little less planning.<br/>A lot more possibility.</strong><span>Days, budget, people and pace. All connected.</span></div></div></div>
-   <div className="sage-route-art"><img src="/images/wandiamo-ai-summit.webp" alt="AI-created mountain landscape with a snow-covered summit, teal shadows and peach clouds" fetchPriority="high" width="1536" height="1024"/><svg className="illustrative-route" viewBox="0 0 600 650" fill="none" aria-hidden="true"><path d="M85 510 C40 400 260 465 310 370 S460 290 420 180" stroke="#edfff5" strokeWidth="3" strokeDasharray="7 6"/><circle cx="85" cy="510" r="10" fill="#effff7"/><circle cx="85" cy="510" r="4" fill="#235a50"/><circle cx="310" cy="370" r="10" fill="#effff7"/><circle cx="310" cy="370" r="4" fill="#235a50"/><circle cx="420" cy="180" r="10" fill="#9fe0cb"/></svg><span className="route-art-label"><Compass size={15}/> A DIFFERENT POINT OF VIEW</span><Link href="/explore" className="route-art-pin pin-one"><MapPin size={17}/><span>Start with your city<small>Find somewhere new</small></span></Link><a href="#journey-planner" className="route-art-pin pin-two"><Route size={17}/><span>Make the journey yours<small>Plan with AI</small></span></a><span className="ai-art-credit">AI LANDSCAPE · ILLUSTRATIVE ROUTE</span></div>
-   <div className="sage-hero-chips"><span><Compass size={14}/>AI trip planner</span><span><Wallet size={14}/>Budget-aware journeys</span><span><Users size={14}/>Solo or together</span></div>
+  <section className="sage-hero reference-hero" aria-labelledby="hero-title">
+   <svg className="clip-definitions" aria-hidden="true" width="0" height="0"><defs><clipPath id="summit-stair" clipPathUnits="objectBoundingBox"><path d="M .49 0 H .93 Q 1 0 1 .08 V .82 Q 1 .9 .93 .9 H .72 Q .66 .9 .66 .96 Q .66 1 .6 1 H .07 Q 0 1 0 .93 V .51 Q 0 .43 .08 .43 H .18 Q .25 .43 .25 .35 V .29 Q .25 .22 .33 .22 H .38 Q .46 .22 .46 .14 V .08 Q .46 0 .49 0 Z"/></clipPath></defs></svg>
+   <div className="sage-hero-copy"><h1 id="hero-title">YOUR JOURNEY<br/>AI PERFECTED</h1><p>From a first spark of curiosity to your last stop. AI brings your days, budget and travel style together into a journey made for you.</p><div className="sage-actions"><Link href="#journey-planner" className="sage-pill"><span><ArrowUpRight size={19}/></span>START PLAN WITH AI</Link><Link className="text-link" href="/explore">Explore routes</Link></div></div>
+   <div className="sage-route-art"><img src="/images/wandiamo-ai-summit-v2.webp" alt="AI-created alpine summit and snow ridge in emerald and peach light" fetchPriority="high" width="1536" height="1024"/><svg className="illustrative-route" viewBox="0 0 800 650" fill="none" aria-hidden="true"><path d="M120 490 C165 425 335 405 480 395 S575 300 545 230 M120 490 C75 565 155 595 310 595 L710 595" stroke="#eefff8" strokeWidth="3" strokeDasharray="7 5"/><circle cx="120" cy="490" r="11" fill="#f3fff8"/><circle cx="120" cy="490" r="4" fill="#235a50"/><circle cx="480" cy="395" r="11" fill="#f3fff8"/><circle cx="480" cy="395" r="4" fill="#235a50"/><circle cx="545" cy="230" r="10" fill="#edfff4"/><circle cx="710" cy="595" r="12" fill="#53dab8"/></svg><Link href="/explore" className="route-art-pin pin-one"><MapPin size={17}/><span>Your next escape<small>Start with your city</small></span></Link><a href="#journey-planner" className="route-art-pin pin-two"><Route size={17}/><span>Your kind of journey<small>Plan with AI</small></span></a><span className="ai-art-credit">AI LANDSCAPE · ILLUSTRATIVE ROUTE</span></div>
+   <section className="temperature-card" id="weather-preview" aria-label="Destination temperature preview"><div><span>SEE TEMPERATURE</span><select aria-label="Weather preview city" value={weatherCity} onChange={event=>setWeatherCity(event.target.value)}><option>Manali</option><option>Goa</option><option>Jaipur</option></select></div><div className="temperature-dial"><span className="dial-dot"/><strong>{weather?.available?weather.temperature+'°C':'—'}</strong><small>{weather===null?'Checking weather':weather.available?'Current temperature':'Weather unavailable'}</small></div><div className="temperature-scale"><span className={weather?.available&&(weather.temperature??0)<15?'active':''}>❄ Cold</span><span className={weather?.available&&(weather.temperature??0)>=15&&(weather.temperature??0)<28?'active':''}>☁ Mild</span><span className={weather?.available&&(weather.temperature??0)>=28?'active':''}>☀ Hot</span></div><a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Weather by Open-Meteo{weather?.available?' · '+weatherCity:''}</a></section>
+   <div className="hero-journey-note"><Compass size={24}/><span><strong>go where you feel alive</strong><small>Your days. Your people. Your way.</small></span></div>
+   <div className="sage-hero-chips"><Link href="/trips/new"><Compass size={14}/>AI route planner</Link><a href="#weather-preview"><MapPin size={14}/>Real-time weather</a><Link href="/explore"><Route size={14}/>Discover nearby</Link></div><div className="altitude-ruler" aria-hidden="true"/>
   </section>
   <section className="landing-planner" id="journey-planner" aria-label="Start planning your journey">
    <div className="landing-planner-tabs" role="group" aria-label="Choose your planning mode"><button type="button" aria-pressed={mode==='route'} onClick={()=>setMode('route')}><Route size={16}/>I have a destination</button><button type="button" aria-pressed={mode==='discover'} onClick={()=>setMode('discover')}><Compass size={16}/>Find my escape</button><span>YOUR DAYS. YOUR PEOPLE. YOUR WAY.</span></div>

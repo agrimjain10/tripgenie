@@ -93,6 +93,43 @@ class WorkspaceFlows(unittest.TestCase):
             with self.assertRaises(visual_service.VisualUnavailable) as error:visual_service.generate_destination_visual('Goa','Food')
             self.assertNotIn('do-not-expose',str(error.exception))
 
+    def test_ai_brief_requires_auth_and_returns_reviewable_draft(self):
+        from concierge_service import TripDraft
+        draft=TripDraft(destination='Manali',origin='Delhi',days=5,travelers=2,budget=18000,travel_mode='Bus',note='Choose dates and review your budget.').model_dump(mode='json')
+        self.assertEqual(self.client.post('/api/ai/understand-trip',json={'message':'Delhi to Manali'}).status_code,401)
+        with patch('concierge_service.understand_trip',return_value=draft):
+            response=self.client.post('/api/ai/understand-trip',headers=self.owner,json={'message':'Delhi se Manali 2 log 18k budget'})
+        self.assertEqual(response.status_code,200)
+        self.assertIsNone(response.json()['draft']['start_date'])
+        self.assertEqual(response.json()['draft']['budget'],18000)
+        self.assertEqual(len(self.client.get('/api/trips',headers=self.owner).json()),1)
+
+    def test_ai_advice_preserves_plan_and_private_history(self):
+        self.generate()
+        before=self.client.get(self.url,headers=self.owner).json()['plan_json']
+        self.assertEqual(self.client.post(self.url+'/ask',headers=self.other,json={'message':'Help with food'}).status_code,404)
+        with patch('concierge_service.answer_trip',return_value='Choose local dhabas for a lower-cost lunch; confirm current menus locally.'):
+            response=self.client.post(self.url+'/ask',headers=self.owner,json={'message':'Where can we save on food?'})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(len(response.json()['messages']),2)
+        saved=self.client.get(self.url,headers=self.owner).json()
+        self.assertEqual(saved['plan_json'],before)
+        self.assertEqual(len(saved['workspace']['advice']),2)
+        share=self.client.post(self.url+'/share',headers=self.owner).json()
+        public=self.client.get('/api/public/trips/'+share['slug']).json()
+        self.assertNotIn('Where can we save on food?',json.dumps(public))
+
+    def test_weather_preview_city_validation_and_failure(self):
+        self.assertEqual(self.client.get('/api/destination-weather?city=invalid').status_code,422)
+        with patch('weather_service.destination_weather',return_value={'available':True,'city':'Manali','temperature':12,'source':'Open-Meteo'}):
+            result=self.client.get('/api/destination-weather?city=Manali').json()
+        self.assertEqual(result['temperature'],12)
+        import weather_service,httpx
+        weather_service._weather.cache_clear()
+        with patch.object(weather_service.httpx.Client,'get',side_effect=httpx.ConnectError('Unavailable')):
+            self.assertFalse(weather_service.destination_weather('Manali')['available'])
+        weather_service._weather.cache_clear()
+
     def test_auth_and_ownership(self):
         self.assertEqual(self.client.get(self.url).status_code, 401)
         self.assertEqual(self.client.get(self.url, headers=self.other).status_code, 404)

@@ -1,0 +1,10 @@
+"use client";
+import {FormEvent,useState} from 'react';
+import {ArrowUpRight,Check,Loader2,Sparkles} from 'lucide-react';
+import {request} from '@/lib/api';
+export type Draft={origin:string|null;destination:string|null;start_date:string|null;end_date:string|null;days:number|null;travelers:number|null;budget:number|null;travel_mode:string;pace:string;language:string;interests:string[];note:string};
+export default function AIBrief({apply}:{apply:(draft:Draft,brief:string)=>void}){
+ const [message,setMessage]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[done,setDone]=useState('');
+ async function understand(event:FormEvent){event.preventDefault();setError('');setDone('');setBusy(true);try{const result=await request<{draft:Draft}>('/api/ai/understand-trip',{method:'POST',body:JSON.stringify({message}),signal:AbortSignal.timeout(22000)});apply(result.draft,message);setDone(result.draft.note||'Draft filled in. Review the fields below before creating your trip.');}catch(error){setError(error instanceof Error?error.message:'Could not read this brief.');}finally{setBusy(false);}}
+ return <section className="ai-brief panel"><div><span className="ai-tool-icon"><Sparkles size={20}/></span><div><span className="eyebrow">JUST TELL WANDIAMO</span><h2>Your words. A head start.</h2><p>Describe the trip in English or Hinglish. AI fills the basics; you review every detail.</p></div></div><form onSubmit={understand}><textarea aria-label="Describe your trip to AI" value={message} onChange={event=>setMessage(event.target.value)} maxLength={1000} minLength={8} required placeholder="Delhi se Manali, 2 people, 5 days, total budget 18k. Bus se jana hai, local food aur nature pasand hai…"/><button className="btn primary" disabled={busy||message.trim().length<8}>{busy?<><Loader2 size={16} className="spin"/>Reading your trip…</>:<>Fill my trip with AI<ArrowUpRight size={16}/></>}</button></form>{error&&<p className="ai-tool-error" role="alert">{error}</p>}{done&&<p className="ai-tool-success" role="status"><Check size={15}/>{done}</p>}</section>;
+}

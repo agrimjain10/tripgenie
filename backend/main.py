@@ -412,3 +412,31 @@ def create_trip_visual(trip_id: int, user: User = Depends(get_current_user), db:
         if visual:visual.state='unavailable';db.commit()
         raise HTTPException(503,str(exc)) from None
     return trip_visual(trip_id,user,db)
+
+
+@app.get('/api/destination-weather')
+def weather_preview(city: Literal['Manali','Goa','Jaipur'] = 'Manali'):
+    from weather_service import destination_weather
+    return destination_weather(city)
+
+
+@app.post('/api/ai/understand-trip')
+def ai_trip_draft(payload: ChatIn, user: User = Depends(get_current_user)):
+    from concierge_service import understand_trip, AIUnavailable
+    try:return {'draft':understand_trip(payload.message),'source':'gemini'}
+    except AIUnavailable as exc:raise HTTPException(503,str(exc)) from None
+
+
+@app.post('/api/trips/{trip_id}/ask')
+def ask_travel_adviser(trip_id: int, payload: ChatIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from concierge_service import answer_trip, AIUnavailable
+    trip=owned_trip(trip_id,user,db)
+    history=workspace(trip).get('advice',[])
+    try:answer=answer_trip(trip,payload.message,history)
+    except AIUnavailable as exc:raise HTTPException(503,str(exc)) from None
+    db.refresh(trip)
+    state=workspace(trip);history=state.get('advice',[])
+    now=datetime.utcnow().isoformat()
+    history.extend([{'role':'user','content':payload.message,'at':now},{'role':'assistant','content':answer,'at':now}])
+    state['advice']=history[-40:];trip.workspace_json=json.dumps(state,ensure_ascii=False);db.commit()
+    return {'messages':state['advice'],'source':'gemini'}

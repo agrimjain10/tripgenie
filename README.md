@@ -239,3 +239,18 @@ No open-source license is granted at present. Contact the owner before reusing o
 The sage visual system runs through the homepage, sign-in/registration, destination discovery, trip wizard, workspace tabs, budget and sharing screens. The homepage mini-planner preserves origin, travelers and destination/days through authentication. Mobile layouts and reduced-motion preferences are supported.
 
 Each private trip includes **Create AI cover**. Gemini creates a destination-inspired cover on request and the backend caches a compressed JPEG in PostgreSQL. All generated artwork is labelled as inspiration. Configure `GEMINI_IMAGE_MODEL` (default `gemini-3.1-flash-image`) and optionally `GEMINI_IMAGE_API_KEY`; otherwise the server uses its existing Gemini key. Google's image model quota/access is separate from text planning. This integration does not activate billing or guarantee free image generation. Provider failure leaves the trip and existing destination photograph intact. See [image provenance and limits](docs/IMAGES.md).
+
+
+### Connected AI travel desk
+
+- **Tell Wandiamo**: authenticated English/Hinglish trip brief extraction fills the trip wizard. Missing dates remain missing; nothing is booked or created until the traveler reviews the form.
+- **Ask about my trip**: answers use the owned trip's route, dates, budget and saved itinerary, with a private persisted conversation. This does not modify the itinerary. Switch to **Edit my itinerary** for existing AI plan changes.
+- **Departure checklist**: AI booking guidance and practical confirmations are saved as checked items, alongside packing, expenses and notes. Checklist shortcuts open actual rail/stay, map/weather and budget tabs.
+- **Temperature preview**: Manali, Goa and Jaipur current temperatures from Open-Meteo, cached for fifteen minutes. No temperature is fabricated when the provider is unavailable. The illustrated hero route is decorative, not a navigation or risk assessment.
+
+The interface uses the same sage surfaces, pill navigation, rounded panels and reduced-motion-aware transitions throughout the app. AI-generated hero assets are labelled and their provenance is documented in `docs/IMAGES.md`.
+
+
+All authenticated screens now share the homepage's inset frame and pill navigation; the legacy sidebar has been removed. Dashboard and trip headers use the same stepped image mask, while forms, filters, checklists, assistant, research, settings and public shared itineraries use the same control and typography system. Nine routes were inspected at 390px mobile width with no horizontal page overflow, alongside desktop layout checks.
+
+Validation: 24 backend tests; Next.js production build/typecheck; real Gemini English/Hinglish draft extraction; real saved-trip adviser response with unchanged itinerary; persisted departure checklist; Open-Meteo current weather; image-provider quota fallback.
