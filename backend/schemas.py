@@ -1,6 +1,6 @@
 import json
 from datetime import date
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
@@ -30,6 +30,7 @@ class TokenOut(BaseModel):
 class TripCreate(BaseModel):
     destination: str = Field(min_length=2, max_length=120)
     origin: Optional[str] = Field(default=None, max_length=120)
+    travel_mode: Literal['Flexible','Train','Bus','Car','Bike','Flight'] = 'Flexible'
     start_date: date
     end_date: date
     travelers: int = Field(default=1, ge=1, le=20)
@@ -54,6 +55,7 @@ class TripOut(BaseModel):
     user_id: int
     destination: str
     origin: Optional[str]
+    travel_mode: str = 'Flexible'
     start_date: str
     end_date: str
     travelers: int
@@ -69,7 +71,7 @@ class TripOut(BaseModel):
     @classmethod
     def from_trip(cls, trip):
         return cls(id=trip.id, user_id=trip.user_id, destination=trip.destination,
-                   origin=trip.origin, start_date=trip.start_date, end_date=trip.end_date,
+                   origin=trip.origin, travel_mode=trip.travel_mode or 'Flexible', start_date=trip.start_date, end_date=trip.end_date,
                    travelers=trip.travelers or 1, budget=trip.budget,
                    interests=trip.interests or "", trip_brief=trip.trip_brief or "",
                    plan_json=trip.plan_json,

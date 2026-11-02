@@ -115,7 +115,7 @@ class Itinerary(BaseModel):
         return self
 
 
-SYSTEM_PROMPT = """You are TripGenie, an experienced practical trip planner. Give the depth of a carefully written full travel guide, using the supplied JSON schema. Avoid generic filler such as 'explore the area' when useful named places are known.
+SYSTEM_PROMPT = """You are Wandiamo, an experienced practical trip planner. Give the depth of a carefully written full travel guide, using the supplied JSON schema. Avoid generic filler such as 'explore the area' when useful named places are known.
 The date range covers the COMPLETE trip from leaving the origin to returning there. Include exactly one day per date. Include arrival, departure, overnight travel, hotel check-in/out, reporting-time buffers, meal breaks, rest, and realistic inter-stop transit. timing_notes MUST explain total calendar days, actual destination sightseeing days, hotel nights, and nights spent in transit. Never silently add a Day 0 or a return day outside the chosen date range. For very short trips, explain limitations rather than cram impossible travel.
 Write a personal introduction (100-160 words), a route_summary, outbound/return journey choices, and 6-9 timed entries per sightseeing day (fewer for travel-only days). Every activity needs a useful 2-3 sentence description, named location, estimated group cost, and a travel_tip with approximate transit allowance. Include regional food suggestions appropriate to dietary preferences. Every day needs practical notes and an overnight field. Group places geographically. Do not overload distant towns into one day; make long excursions optional with a local alternative. Account for the travel month, daylight, road restrictions, and weather uncertainty. Never guarantee snow or access.
 Budget is TOTAL for the whole party in INR. Include 6-10 budget_line_items with quantity, unit_cost, total, category, and an explanatory note. Include return intercity transport, all hotel nights, food, local sightseeing transport, entry/optional activities, and an unspent contingency allowance. Quantity times unit_cost must equal each line total. Budget category totals must equal the line items; do not double count activity costs in both daily and overall totals. Aim within budget with credible trade-offs. If infeasible, clearly say so and offer a lower-cost alternative; do not invent bargain fares to force the total. Explain per-person spend in the introduction. Daily totals are food/activity spending allowances, not the entire trip budget.
@@ -135,11 +135,16 @@ def _try_gemini(prompt: str, trip, expected_days: int) -> dict:
         raise RuntimeError("Gemini key is not configured")
     client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=40000, retry_options=types.HttpRetryOptions(attempts=1)))
     last_error = None
-    for model in _model_chain():
+    models = _model_chain()
+    validation_feedback = ''
+    for attempt_index, configured_model in enumerate(models):
+        # Keep two attempts bounded: repair invalid output with the primary model;
+        # provider/network failures still move to the configured fallback.
+        model = models[0] if validation_feedback else configured_model
         try:
             response = client.models.generate_content(
                 model=model,
-                contents=prompt,
+                contents=prompt + validation_feedback,
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
                     response_mime_type="application/json",
@@ -151,6 +156,15 @@ def _try_gemini(prompt: str, trip, expected_days: int) -> dict:
             if not response.text:
                 raise ValueError("Gemini returned an empty response")
             plan = Itinerary.model_validate_json(response.text).model_dump()
+            estimate = round(sum(plan['budget_breakdown'].values()), 2)
+            cap = float(trip.budget or 0)
+            if cap and estimate > cap and not any(term in plan['summary'].lower() for term in ('over budget', 'exceeds', 'above your budget', 'budget se zyada', 'budget se upar', 'not feasible')):
+                raise ValueError(f'Budget mismatch: line items total INR {estimate:,.0f}, but the group cap is INR {cap:,.0f}. Revise the accommodation/transport choices with credible tradeoffs, or explicitly say the trip exceeds the cap and state both totals. Do not claim this is within budget or comfortable. Do not fabricate prices.')
+            for index, day in enumerate(plan['days']):
+                title = day['title'].lower()
+                mixed = any(term in title for term in ('arrival', 'return', 'departure', 'journey', 'drive', 'travel', 'arrive', 'wapas', 'wapsi'))
+                if attempt_index == 0 and 0 < index < len(plan['days']) - 1 and not mixed and len(day['activities']) < 5:
+                    raise ValueError(f'Day {index+1} is a full destination day but lacks detail. Provide 6-9 timed entries including breakfast, geographically grouped sights, lunch, a rest break, local food and an evening plan. Include practical descriptions and transit allowances; do not cram distant towns.')
             expected_dates = [
                 (date.fromisoformat(trip.start_date) + timedelta(days=index)).isoformat()
                 for index in range(expected_days)
@@ -169,6 +183,7 @@ def _try_gemini(prompt: str, trip, expected_days: int) -> dict:
             return plan
         except Exception as exc:
             last_error = exc
+            validation_feedback = ('\n\nCORRECTION REQUIRED FOR THE NEXT COMPLETE JSON RESPONSE: ' + str(exc)[:900]) if isinstance(exc, ValueError) else ''
             logger.warning("Gemini model attempt failed (%s; error type %s; status %s)", model, type(exc).__name__, getattr(exc, 'code', 'validation/network'))
     raise RuntimeError("No configured Gemini model returned a usable plan") from last_error
 
@@ -230,16 +245,22 @@ def _sample_plan(trip, reason: str = "") -> dict:
 def _trip_context(trip) -> str:
     context = (f"Destination: {trip.destination}\nOrigin: {trip.origin or 'not provided'}\n"
             f"Dates: {trip.start_date} through {trip.end_date}\nTravelers: {trip.travelers or 1}\n"
+            f"Preferred travel mode: {getattr(trip, 'travel_mode', None) or 'Flexible'}. Honor this mode; never silently switch it.\n"
             f"Total budget: {trip.budget if trip.budget is not None else 'not specified'} INR\n"
             f"Interests: {trip.interests or 'general sightseeing, food, and a relaxed pace'}\n"
             f"Traveler's natural-language brief: {trip.trip_brief or 'none'}")
-    if trip.origin and 'delhi' in trip.origin.lower() and any(name in trip.destination.lower() for name in ('manali', 'himachal')):
+    if (getattr(trip, 'travel_mode', None) or 'Flexible') in ('Flexible','Bus') and trip.origin and 'delhi' in trip.origin.lower() and any(name in trip.destination.lower() for name in ('manali', 'himachal')):
         start = date.fromisoformat(trip.start_date)
         end = date.fromisoformat(trip.end_date)
         count = (end - start).days + 1
         if count >= 3:
             context += (f"\nCRITICAL overnight-bus timing constraint for this exact date range: leave Delhi on {start.isoformat()}, arrive in Manali on {(start + timedelta(days=1)).isoformat()}, leave Manali on {(end - timedelta(days=1)).isoformat()}, arrive back in Delhi on {end.isoformat()}. "
                         f"This means 2 bus nights and only {max(count-3,0)} hotel nights; do NOT add travel before or after these dates. First date is departure from Delhi, not arrival in Manali. Final date is arrival in Delhi, not departure from Manali. If another transport mode is chosen, account for its actual travel days and costs explicitly.")
+    from discovery_service import known_place
+    target = known_place(trip.destination)
+    if target:
+        context += f"\nDestination railhead guidance: {target.get('station') or 'verify station'} — {target.get('railhead', target['name'])}. This is routing guidance, not a train timetable or booking."
+    context += "\nRespect the selected mode. For car/bike trips, plan daylight driving, meal/fuel/rest breaks and realistic hill-road speeds. For rail, include station transfers and any last-mile road segment. For flights include airport reporting and ground transfers; do not invent a direct flight. Keep the first/last day realistic. Recommend named local experiences, meal ideas, grouped neighborhoods, weather alternatives and a clear per-person/group budget. Do not claim to have checked live trains, hotel inventory or fares."
     return context
 
 

@@ -1,7 +1,9 @@
 <div align="center">
 
-# 🌿 TripGenie
-### A thoughtful travel workspace, from the first idea to the last day.
+# 🌿 Wandiamo
+### Go where you feel alive.
+
+Made by **CODESCHMIEDE technology private limited**.
 
 Plan the route. Understand the budget. Keep the whole journey together.
 
@@ -12,26 +14,33 @@ Plan the route. Understand the budget. Keep the whole journey together.
 ![Gemini](https://img.shields.io/badge/Powered_by-Gemini-8e75b2?logo=googlegemini&logoColor=white)
 ![Deployment](https://img.shields.io/badge/Deployment-Vercel-111827?logo=vercel)
 
-**[Open the live app](https://tripgenie-escape.vercel.app)** · [Features](#what-you-can-do) · [Quick start](#run-locally) · [Architecture](#how-it-fits-together) · [Deployment](docs/DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md)
+**[Open the live app](https://wandiamo-escape.vercel.app)** · [Features](#what-you-can-do) · [Quick start](#run-locally) · [Architecture](#how-it-fits-together) · [Deployment](docs/DEPLOYMENT.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
-![TripGenie live landing page](docs/images/landing.png)
+![Wandiamo live landing page](docs/images/landing.png)
 
 <details>
 <summary><strong>Inside a detailed trip workspace</strong></summary>
 
-![TripGenie detailed trip workspace](docs/images/trip-workspace.png)
+![Wandiamo detailed trip workspace](docs/images/trip-workspace.png)
 
 </details>
 
 ## The idea
 
-Travel planning usually ends with scattered messages, a rough budget, and a document that is hard to update. TripGenie puts the itinerary, journey logistics, expenses, packing list, notes, and trip conversation in one saved workspace.
+Travel planning usually ends with scattered messages, a rough budget, and a document that is hard to update. Wandiamo puts the itinerary, journey logistics, expenses, packing list, notes, and trip conversation in one saved workspace.
 
 Tell it where you are starting, your dates, group size, budget, interests, and preferred language. It builds a detailed plan that you can refine through conversation or edit yourself.
 
 > **Example:** Delhi → Manali · 2 travelers · ₹18,000 group budget · 5 days. The plan accounts for outbound and return journeys, hotel versus overnight transit nights, timed activities, local travel tips, itemized costs, booking tasks, and alternatives.
+
+## Two ways to start
+
+- **Plan a route:** choose your origin, destination, dates, group and preferred travel mode.
+- **Find my escape:** enter a starting city (or use optional approximate location), days, group budget, travelers and interests. Compare realistic nearby possibilities, then send the complete shortlist choice into the trip wizard.
+
+The discovery catalogue currently contains 38 Indian destinations. Ranking is transparent and works without an AI key: travel-time allowance, usable daytime hours, preference overlap and a conservative budget range. Distances and costs are estimates, not mapped routes or live inventory. A one-day trip must leave time to return.
 
 ## What you can do
 
@@ -39,6 +48,10 @@ Tell it where you are starting, your dates, group size, budget, interests, and p
 | :--- | :--- |
 | **Your account** | Register, sign in, update your profile, save preferences, change your password |
 | **Trip collection** | Search, upcoming/past/archived filters, duplicate, archive and restore |
+| **Discovery & comparison** | Origin, days, budget, solo/group, six travel modes, interests, sort and compare up to three options |
+| **Location privacy** | Optional rounded coordinates resolved against known cities; coordinates are not saved or sent to third-party geocoding |
+| **Themes** | Warm sand, forest green and after-dark themes, remembered in the browser |
+| **Rail & stays** | Station guidance, IndianRailAPI timetable adapter, OpenStreetMap accommodation listings and date/group-aware booking searches |
 | **Guided planning** | Three-step wizard: origin, destination, dates, travelers, interests and group budget |
 | **Detailed itineraries** | Journey segments, timed activities, descriptions, transit tips and overnight stays |
 | **Night accounting** | Separate hotel nights and overnight travel, aligned with selected dates |
@@ -139,6 +152,7 @@ Run `npm run build` followed by `npm run start` in `frontend`. On Windows, root 
 | `GEMINI_API_KEY` | Backend only | Gemini credential; never expose in browser code |
 | `GEMINI_MODEL` | Backend | Primary model; example uses `gemini-3.1-flash-lite` |
 | `GEMINI_FALLBACK_MODELS` | Backend | Optional comma-separated fallback model IDs |
+| `INDIAN_RAIL_API_KEY` | Backend only, optional | Separate IndianRailAPI timetable credential; station guidance works without it |
 | `JWT_SECRET` | Backend | Long random signing secret |
 | `FRONTEND_URL` | Backend | Exact allowed browser origins, comma-separated |
 | `DATABASE_URL` | Backend | Optional locally; persistent PostgreSQL required in cloud |
@@ -155,6 +169,8 @@ tripgenie/
 ├── backend/
 │   ├── main.py                 # Routes, jobs, workspace and external data
 │   ├── ai_service.py           # Gemini generation and structured validation
+│   ├── discovery_service.py    # India catalogue, city resolution and transparent matching
+│   ├── travel_service.py       # Rail timetables and map-sourced stays
 │   ├── starter_service.py      # Curated fallback journeys
 │   ├── auth.py                 # Password hashing and JWT ownership checks
 │   ├── database.py             # SQLite / PostgreSQL connections
@@ -202,6 +218,8 @@ Check changes before pushing and keep secrets in hosting settings. Production ha
 
 ## Practical boundaries
 
+- The optional IndianRailAPI credential is not included. Without it, official enquiry/booking links and railhead guidance remain usable. Timetable access does not establish seat availability.
+- Map-sourced hotels have real names/locations but unverified room availability and no invented prices. Compare and book directly with providers.
 - Travel costs are estimates, not live fares. The app does not book transport/accommodation or process payments.
 - Weather is the current seven-day forecast, not a prediction for arbitrary future dates.
 - Gemini availability, quotas and prices depend on the Google project and model.
@@ -211,6 +229,6 @@ Check changes before pushing and keep secrets in hosting settings. Production ha
 
 ## Credits
 
-Built by **Agrim Jain**. Photography is bundled locally from Unsplash. Forecasts: [Open-Meteo](https://open-meteo.com/). Maps: [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). Attribution appears in the relevant panels.
+Made by **CODESCHMIEDE technology private limited**. Developed by Agrim Jain. Real photography is bundled locally from Unsplash and Pexels; no generated travel imagery is used. See [photo credits](docs/IMAGES.md). Forecasts: [Open-Meteo](https://open-meteo.com/). Maps: [OpenStreetMap contributors](https://www.openstreetmap.org/copyright). Attribution appears in the relevant panels.
 
 No open-source license is granted at present. Contact the owner before reusing or redistributing the code.

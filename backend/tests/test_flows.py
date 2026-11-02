@@ -155,5 +155,115 @@ class WorkspaceFlows(unittest.TestCase):
         self.assertEqual(normalized.budget_line_items[0].total, normalized.budget_line_items[0].quantity * normalized.budget_line_items[0].unit_cost)
         self.assertEqual(sum(normalized.budget_breakdown.model_dump().values()), 18000)
 
+
+    def test_discovery_ranking_and_budget_boundaries(self):
+        payload={'origin':'Delhi','days':3,'travelers':2,'budget':20000,'travel_mode':'Train','interests':['Culture','Food']}
+        result=self.client.post('/api/discovery/suggest',headers=self.owner,json=payload)
+        self.assertEqual(result.status_code,200)
+        self.assertTrue(result.json()['results'])
+        for place in result.json()['results']:
+            self.assertTrue(place['within_budget'])
+            self.assertLessEqual(place['cost_range'][1],payload['budget'])
+            self.assertGreater(place['usable_hours'],0)
+            self.assertAlmostEqual(sum(place['budget_breakdown'].values()),place['estimated_total'])
+        payload.update(budget=500,days=1)
+        result=self.client.post('/api/discovery/suggest',headers=self.owner,json=payload)
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(result.json()['within_budget_count'],0)
+        for place in result.json()['results']:
+            self.assertFalse(place['within_budget'])
+            self.assertLessEqual(place['one_way_hours'],2.5)
+
+    def test_discovery_geolocation_and_limits(self):
+        result=self.client.post('/api/discovery/location',headers=self.owner,json={'latitude':31.3,'longitude':75.6})
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(result.json()['name'],'Jalandhar')
+        self.assertTrue(result.json()['approximate'])
+        self.assertNotIn('latitude',result.json())
+        self.assertEqual(self.client.post('/api/discovery/location',headers=self.owner,json={'latitude':200,'longitude':75}).status_code,422)
+        self.assertEqual(self.client.post('/api/discovery/location',headers=self.owner,json={'latitude':51.5,'longitude':-.1}).status_code,422)
+        self.assertEqual(self.client.post('/api/discovery/suggest',json={'origin':'Delhi','days':3,'budget':10000}).status_code,401)
+        self.assertEqual(self.client.post('/api/discovery/suggest',headers=self.owner,json={'origin':'Delhi','days':22,'budget':10000}).status_code,422)
+        self.assertEqual(self.client.post('/api/discovery/suggest',headers=self.owner,json={'origin':'Delhi','days':3,'budget':10000,'travel_mode':'Teleport'}).status_code,422)
+
+    def test_rail_provider_and_station_ownership(self):
+        import os
+        import travel_service
+        self.assertEqual(self.client.get(self.url+'/rail',headers=self.other).status_code,404)
+        with patch.dict(os.environ,{'INDIAN_RAIL_API_KEY':''}):
+            result=self.client.get(self.url+'/rail',headers=self.owner).json()
+            self.assertFalse(result['available'])
+            self.assertEqual(result['from_station'],'NDLS')
+            self.assertEqual(result['to_station'],'CDG')
+            self.assertIn('onward',result['railhead_note'])
+            self.assertEqual(result['trains'],[])
+        with patch.dict(os.environ,{'INDIAN_RAIL_API_KEY':'test-provider-key'}),patch.object(travel_service.httpx,'Client') as factory:
+            response=factory.return_value.__enter__.return_value.get.return_value
+            response.json.return_value={'ResponseCode':'200','Trains':[{'TrainNo':'12345','TrainName':'Provider timetable fixture','DepartureTime':'08:00','ArrivalTime':'12:00','TravelTime':'04:00H'}]}
+            result=self.client.get(self.url+'/rail',headers=self.owner).json()
+            self.assertTrue(result['available'])
+            self.assertEqual(result['trains'][0]['number'],'12345')
+            self.assertNotIn('fare',result['trains'][0])
+            self.assertIn('not live seat availability',result['message'])
+        self.assertEqual(self.client.get(self.url+'/rail?from_station=../../secret',headers=self.owner).status_code,422)
+
+    def test_real_stay_data_and_safe_links(self):
+        import travel_service
+        travel_service._stay_cache.clear()
+        with patch.object(travel_service.httpx,'Client') as factory:
+            response=factory.return_value.__enter__.return_value.post.return_value
+            response.json.return_value={'elements':[{'type':'node','id':123,'tags':{'name':'Map-sourced guesthouse','tourism':'guest_house','website':'javascript:alert(1)'}},{'type':'way','id':456,'tags':{'name':'Map-sourced hostel','tourism':'hostel','website':'https://example.com'}}]}
+            result=self.client.get(self.url+'/stays',headers=self.owner)
+            self.assertEqual(result.status_code,200)
+            stays=result.json()['stays']
+            self.assertEqual(len(stays),2)
+            self.assertIsNone(stays[0]['website'])
+            self.assertIsNone(stays[0]['price'])
+            self.assertIsNone(stays[0]['availability'])
+            self.assertIn('checkin=2026-12-25',result.json()['booking_url'])
+        self.assertEqual(self.client.get(self.url+'/stays',headers=self.other).status_code,404)
+        travel_service._stay_cache.clear()
+
+    def test_travel_mode_roundtrip_and_ai_context(self):
+        from ai_service import _trip_context
+        from types import SimpleNamespace
+        result=self.client.post('/api/trips',headers=self.owner,json={'destination':'Manali','origin':'Delhi','start_date':'2026-12-25','end_date':'2026-12-29','travel_mode':'Car','travelers':1})
+        self.assertEqual(result.status_code,201)
+        self.assertEqual(result.json()['travel_mode'],'Car')
+        copied=self.client.post('/api/trips/'+str(result.json()['id'])+'/duplicate',headers=self.owner).json()
+        self.assertEqual(copied['travel_mode'],'Car')
+        context=_trip_context(SimpleNamespace(destination='Manali',origin='Delhi',start_date='2026-12-25',end_date='2026-12-29',travelers=1,budget=15000,interests='Nature',trip_brief='',travel_mode='Car'))
+        self.assertIn('Preferred travel mode: Car',context)
+        self.assertNotIn('CRITICAL overnight-bus',context)
+        self.assertIn('daylight driving',context)
+
+    def test_discovery_photo_assets_exist(self):
+        response=self.client.get('/api/discovery/catalog')
+        self.assertEqual(response.status_code,200)
+        self.assertGreaterEqual(len(response.json()['destinations']),30)
+        for place in response.json()['destinations']:
+            self.assertTrue((Path(__file__).resolve().parents[2]/'frontend'/'public'/place['image'].lstrip('/')).exists(),place['image'])
+
+
+    def test_ai_repairs_false_budget_claim(self):
+        import copy, os
+        import ai_service
+        from types import SimpleNamespace
+        trip=SimpleNamespace(destination='Manali',origin='Delhi',start_date='2026-12-25',end_date='2026-12-27',travelers=2,budget=18000,interests='Nature',trip_brief='',travel_mode='Bus')
+        valid=_sample_plan(trip)
+        invalid=copy.deepcopy(valid)
+        invalid['summary']='This is a comfortable trip within the budget.'
+        invalid['budget_line_items'][0]['quantity']+=20
+        with patch.dict(os.environ,{'GEMINI_API_KEY':'test-key','GEMINI_MODEL':'primary-test','GEMINI_FALLBACK_MODELS':'fallback-test'}),patch.object(ai_service.genai,'Client') as factory:
+            client=factory.return_value
+            client.models.generate_content.side_effect=[SimpleNamespace(text=json.dumps(invalid)),SimpleNamespace(text=json.dumps(valid))]
+            result=ai_service._try_gemini('Plan this trip',trip,3)
+            self.assertEqual(result['_meta']['source'],'gemini')
+            self.assertLessEqual(sum(result['budget_breakdown'].values()),18000)
+            self.assertEqual(client.models.generate_content.call_count,2)
+            second=client.models.generate_content.call_args_list[1].kwargs
+            self.assertEqual(second['model'],'primary-test')
+            self.assertIn('Budget mismatch',second['contents'])
+
 if __name__ == '__main__':
     unittest.main()

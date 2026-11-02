@@ -48,7 +48,7 @@ def create_pdf(trip, plan: dict) -> bytes:
     date_line = f"{route}{_paragraph(trip.destination)}  |  {_paragraph(trip.start_date)} to {_paragraph(trip.end_date)}  |  {party}"
     if trip.budget is not None:
         date_line += f"  |  Budget INR {trip.budget:,.0f}"
-    story = [Paragraph("TripGenie", styles["Small"]), Paragraph(_paragraph(trip.destination), styles["TripTitle"]), Paragraph(date_line, styles["Small"]), Spacer(1, 7*mm), Paragraph("The trip at a glance", styles["Section"]), Paragraph(_paragraph(plan.get("summary")), styles["BodyText"]) ]
+    story = [Paragraph("Wandiamo", styles["Small"]), Paragraph(_paragraph(trip.destination), styles["TripTitle"]), Paragraph(date_line, styles["Small"]), Spacer(1, 7*mm), Paragraph("The trip at a glance", styles["Section"]), Paragraph(_paragraph(plan.get("summary")), styles["BodyText"]) ]
 
     if plan.get('route_summary'):
         story.extend([Paragraph('Route and travel-day accounting', styles['Section']), Paragraph(_paragraph(plan['route_summary']), styles['BodyText']), Paragraph(_paragraph(plan.get('timing_notes')), styles['Small'])])
@@ -112,5 +112,6 @@ def create_pdf(trip, plan: dict) -> bytes:
     if plan.get("booking_guidance"):
         story.extend([Spacer(1, 4*mm), Paragraph(_paragraph(plan["booking_guidance"]), styles["Small"])])
     story.extend([Spacer(1, 5*mm), Paragraph("Prices and suggestions are estimates. Confirm current details directly with travel providers.", styles["Small"])])
+    story.extend([Spacer(1, 4*mm), Paragraph("Wandiamo - go where you feel alive", styles["Small"]), Paragraph("Made by CODESCHMIEDE technology private limited", styles["Small"])])
     doc.build(story)
     return output.getvalue()

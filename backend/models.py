@@ -21,6 +21,7 @@ class Trip(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     destination = Column(String, nullable=False)
     origin = Column(String, nullable=True)
+    travel_mode = Column(String, default='Flexible')
     start_date = Column(String, nullable=False)
     end_date = Column(String, nullable=False)
     travelers = Column(Integer, nullable=False, default=1)

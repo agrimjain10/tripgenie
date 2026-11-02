@@ -54,7 +54,7 @@ def detailed_sections(trip, plan, base, mountain=False):
             activity['travel_tip']='Group this stop with nearby places. Use walking or a licensed local taxi, and confirm the fare before setting out.'
     plan['booking_checklist']=['Confirm return transport prices and pickup/drop locations for every traveler.','Check hotel cancellation rules, taxes, check-in time, and ID requirements.','Keep the contingency reserve separate from daily spending.','Check current opening hours and access conditions before committing to paid activities.']
     plan['alternatives']=['If bad weather or a closure affects an outing, replace it with a nearby indoor or local option.','If a private taxi exceeds the allowance, compare a shared tour or reduce the route.','Keep expensive adventure activities optional so the core trip remains within budget.']
-    if mountain and trip.origin and 'delhi' in trip.origin.lower() and count>=3:
+    if (getattr(trip, 'travel_mode', None) or 'Flexible') in ('Flexible','Bus') and mountain and trip.origin and 'delhi' in trip.origin.lower() and count>=3:
         nights=max(count-3,0);sightseeing=max(count-2,1)
         plan['calendar_accounting']={'total_days':count,'hotel_nights':nights,'transit_nights':2,'sightseeing_days':sightseeing}
         total=float(trip.budget) if trip.budget and trip.budget>0 else 18000

@@ -1,6 +1,6 @@
 # Deployment and continuous updates
 
-**Live app:** https://tripgenie-escape.vercel.app
+**Live app:** https://wandiamo-escape.vercel.app
 
 **Backend health:** https://tripgenie-api.vercel.app/api/health
 

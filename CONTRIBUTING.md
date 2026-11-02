@@ -1,4 +1,4 @@
-# Working on TripGenie
+# Working on Wandiamo
 
 ## Everyday workflow
 

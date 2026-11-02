@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).with_name('.env'), encoding='utf-8-sig')
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import inspect
@@ -17,11 +17,14 @@ from schemas import ChatIn, LoginIn, TokenOut, TripCreate, TripOut, UserCreate, 
 from auth import create_token, get_current_user, hash_password, verify_password
 from ai_service import generate_plan, update_plan, _sample_plan, Itinerary
 from pdf_service import create_pdf
+from typing import Literal
+from discovery_service import DESTINATIONS, PLACES, nearest_city, suggest
+from travel_service import rail_options, stay_options
 
 logger = logging.getLogger('tripgenie')
 Base.metadata.create_all(bind=engine)
 with engine.begin() as connection:
-    additions = {'origin': 'VARCHAR', 'travelers': 'INTEGER NOT NULL DEFAULT 1', 'trip_brief': "TEXT DEFAULT ''", 'status': "VARCHAR DEFAULT 'draft'", 'workspace_json': "TEXT DEFAULT '{}'", 'public_slug': 'VARCHAR', 'updated_at': 'TIMESTAMP'}
+    additions = {'travel_mode': "VARCHAR DEFAULT 'Flexible'", 'origin': 'VARCHAR', 'travelers': 'INTEGER NOT NULL DEFAULT 1', 'trip_brief': "TEXT DEFAULT ''", 'status': "VARCHAR DEFAULT 'draft'", 'workspace_json': "TEXT DEFAULT '{}'", 'public_slug': 'VARCHAR', 'updated_at': 'TIMESTAMP'}
     columns = {column['name'] for column in inspect(connection).get_columns('trips')}
     for name, definition in additions.items():
         if name not in columns:
@@ -30,7 +33,7 @@ with engine.begin() as connection:
     if 'preferences_json' not in user_columns:
         connection.exec_driver_sql("ALTER TABLE users ADD COLUMN preferences_json TEXT DEFAULT '{}'")
 
-app = FastAPI(title='TripGenie', version='3.0.0')
+app = FastAPI(title='Wandiamo', version='3.0.0')
 app.add_middleware(CORSMiddleware, allow_origins=[url.strip().rstrip('/') for url in os.getenv('FRONTEND_URL', 'http://localhost:3000,http://127.0.0.1:3000').split(',') if url.strip()], allow_credentials=True, allow_methods=['GET', 'POST', 'PATCH', 'DELETE'], allow_headers=['Authorization', 'Content-Type'])
 
 
@@ -79,7 +82,7 @@ def run_planning(trip_id, action, message='', job_token=''):
 
 @app.get('/api/health')
 def health():
-    return {'status': 'ok', 'service': 'TripGenie'}
+    return {'status': 'ok', 'service': 'Wandiamo'}
 
 
 @app.post('/api/register', response_model=TokenOut, status_code=201)
@@ -140,7 +143,7 @@ def list_trips(user: User = Depends(get_current_user), db: Session = Depends(get
 def create_trip(payload: TripCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if (payload.end_date - payload.start_date).days > 20:
         raise HTTPException(400, 'Choose a trip of 21 days or fewer')
-    trip = Trip(user_id=user.id, destination=payload.destination, origin=payload.origin, start_date=payload.start_date.isoformat(), end_date=payload.end_date.isoformat(), travelers=payload.travelers, budget=payload.budget, interests=payload.interests.strip(), trip_brief=payload.trip_brief.strip(), status='draft', workspace_json='{}', updated_at=datetime.utcnow())
+    trip = Trip(user_id=user.id, destination=payload.destination, origin=payload.origin, travel_mode=payload.travel_mode, start_date=payload.start_date.isoformat(), end_date=payload.end_date.isoformat(), travelers=payload.travelers, budget=payload.budget, interests=payload.interests.strip(), trip_brief=payload.trip_brief.strip(), status='draft', workspace_json='{}', updated_at=datetime.utcnow())
     db.add(trip); db.commit(); db.refresh(trip)
     return TripOut.from_trip(trip)
 
@@ -207,7 +210,7 @@ def delete_trip(trip_id: int, user: User = Depends(get_current_user), db: Sessio
 @app.post('/api/trips/{trip_id}/duplicate', status_code=201)
 def duplicate(trip_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     trip = owned_trip(trip_id, user, db)
-    copy = Trip(user_id=user.id, destination=trip.destination, origin=trip.origin, start_date=trip.start_date, end_date=trip.end_date, travelers=trip.travelers, budget=trip.budget, interests=trip.interests, trip_brief=trip.trip_brief, plan_json=trip.plan_json, status='planned' if trip.plan_json else 'draft', workspace_json=json.dumps({'title': (workspace(trip).get('title') or trip.destination) + ' (copy)'}), updated_at=datetime.utcnow())
+    copy = Trip(user_id=user.id, destination=trip.destination, origin=trip.origin, travel_mode=trip.travel_mode, start_date=trip.start_date, end_date=trip.end_date, travelers=trip.travelers, budget=trip.budget, interests=trip.interests, trip_brief=trip.trip_brief, plan_json=trip.plan_json, status='planned' if trip.plan_json else 'draft', workspace_json=json.dumps({'title': (workspace(trip).get('title') or trip.destination) + ' (copy)'}), updated_at=datetime.utcnow())
     db.add(copy); db.commit(); db.refresh(copy)
     return TripOut.from_trip(copy)
 
@@ -279,7 +282,7 @@ def download_pdf(trip_id: int, user: User = Depends(get_current_user), db: Sessi
     trip = owned_trip(trip_id, user, db)
     if not trip.plan_json:
         raise HTTPException(400, 'Generate an itinerary first')
-    return Response(create_pdf(trip, json.loads(trip.plan_json)), media_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="tripgenie-{trip.id}.pdf"'})
+    return Response(create_pdf(trip, json.loads(trip.plan_json)), media_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="wandiamo-{trip.id}.pdf"'})
 
 
 @app.get('/api/trips/{trip_id}/ics')
@@ -289,7 +292,7 @@ def calendar(trip_id: int, user: User = Depends(get_current_user), db: Session =
         raise HTTPException(400, 'Generate an itinerary first')
     def clean(value):
         return str(value).replace('\\', '\\\\').replace('\n', '\\n').replace(',', '\\,').replace(';', '\\;').replace('\r', '')
-    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TripGenie//Travel Plan//EN', 'CALSCALE:GREGORIAN']
+    lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Wandiamo//Travel Plan//EN', 'CALSCALE:GREGORIAN']
     for day in json.loads(trip.plan_json).get('days', []):
         day_date = day.get('date') or (datetime.fromisoformat(trip.start_date) + timedelta(days=day['day']-1)).date().isoformat()
         for index, activity in enumerate(day.get('activities', [])):
@@ -298,9 +301,9 @@ def calendar(trip_id: int, user: User = Depends(get_current_user), db: Session =
             except ValueError:
                 clock = '100000'
             start = datetime.strptime(day_date.replace('-', '') + 'T' + clock, '%Y%m%dT%H%M%S')
-            lines.extend(['BEGIN:VEVENT', f'UID:{trip.id}-{day["day"]}-{index}@tripgenie.local', 'DTSTAMP:' + datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'), 'DTSTART:' + start.strftime('%Y%m%dT%H%M%S'), 'DTEND:' + (start+timedelta(hours=1)).strftime('%Y%m%dT%H%M%S'), 'SUMMARY:' + clean(activity['activity']), 'LOCATION:' + clean(activity.get('location', trip.destination)), 'END:VEVENT'])
+            lines.extend(['BEGIN:VEVENT', f'UID:{trip.id}-{day["day"]}-{index}@wandiamo.local', 'DTSTAMP:' + datetime.utcnow().strftime('%Y%m%dT%H%M%SZ'), 'DTSTART:' + start.strftime('%Y%m%dT%H%M%S'), 'DTEND:' + (start+timedelta(hours=1)).strftime('%Y%m%dT%H%M%S'), 'SUMMARY:' + clean(activity['activity']), 'LOCATION:' + clean(activity.get('location', trip.destination)), 'END:VEVENT'])
     lines.append('END:VCALENDAR')
-    return Response('\r\n'.join(lines)+'\r\n', media_type='text/calendar', headers={'Content-Disposition': f'attachment; filename="tripgenie-{trip.id}.ics"'})
+    return Response('\r\n'.join(lines)+'\r\n', media_type='text/calendar', headers={'Content-Disposition': f'attachment; filename="wandiamo-{trip.id}.ics"'})
 
 
 @app.get('/api/trips/{trip_id}/travel-info')
@@ -322,3 +325,50 @@ def travel_info(trip_id: int, user: User = Depends(get_current_user), db: Sessio
             return {'available': True, 'location': place, 'weather': response.json().get('daily', {}), 'message': 'Current 7-day forecast, not a forecast for dates further ahead.', 'attribution': 'Weather data by Open-Meteo. Map by OpenStreetMap contributors.'}
     except httpx.HTTPError:
         return {'available': False, 'message': 'Live weather is temporarily unavailable. Your saved itinerary is still available.'}
+
+class DiscoveryIn(BaseModel):
+    origin: str = Field(min_length=2, max_length=120)
+    days: int = Field(ge=1, le=21)
+    travelers: int = Field(default=1, ge=1, le=20)
+    budget: float = Field(ge=500, le=100000000, allow_inf_nan=False)
+    travel_mode: Literal['Flexible','Train','Bus','Car','Bike','Flight'] = 'Flexible'
+    interests: list[str] = Field(default_factory=list, max_length=12)
+
+class LocationIn(BaseModel):
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+
+@app.get('/api/discovery/catalog')
+def discovery_catalog():
+    return {'origins':sorted({p['name'] for p in PLACES}), 'destinations':[{k:p[k] for k in ('name','region','image','tags','highlights')} for p in DESTINATIONS]}
+
+@app.post('/api/discovery/location')
+def discovery_location(payload: LocationIn, user: User = Depends(get_current_user)):
+    try:
+        return nearest_city(payload.latitude, payload.longitude)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+@app.post('/api/discovery/suggest')
+def discovery_suggestions(payload: DiscoveryIn, user: User = Depends(get_current_user)):
+    import httpx
+    try:
+        return suggest(payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    except httpx.HTTPError:
+        raise HTTPException(503, 'City lookup is temporarily unavailable. Choose a city from the suggestions and try again.')
+
+@app.get('/api/trips/{trip_id}/rail')
+def trip_rail(trip_id: int, from_station: str | None = Query(default=None, pattern='^[A-Z]{2,5}$'), to_station: str | None = Query(default=None, pattern='^[A-Z]{2,5}$'), user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return rail_options(owned_trip(trip_id, user, db), from_station, to_station)
+
+@app.get('/api/trips/{trip_id}/stays')
+def trip_stays(trip_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    import httpx
+    from urllib.parse import urlencode
+    trip=owned_trip(trip_id, user, db)
+    try:
+        return stay_options(trip)
+    except (httpx.HTTPError,ValueError):
+        return {'available':False,'stays':[],'source':'OpenStreetMap contributors','message':'The map provider could not locate this destination. Search current stays below.','hotels_url':'https://www.google.com/travel/hotels?'+urlencode({'q':trip.destination+' hotels'}),'booking_url':'https://www.booking.com/searchresults.html?'+urlencode({'ss':trip.destination}),'maps_url':'https://www.google.com/maps/search/?'+urlencode({'api':1,'query':trip.destination+' hotels'})}
